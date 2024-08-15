@@ -1,0 +1,50 @@
+stages:
+- build
+- test
+- deploy
+
+variables:
+  CI_REGISTRY_ID: <PROJECT NAME>
+  CI_NAMESPACE: <PROJECT NAMESPACE>
+  CI_REGISTRY_URI: <REGISTRY_URI>
+
+build_develop:
+  image: docker:20.10
+  stage: build
+  script:
+  - echo "$SSH_PRIVATE_KEY" | base64 -d | tr -d '\r' > ./key
+  - docker build --ssh default=./key -t $CI_REGISTRY_URI/$CI_REGISTRY_ID/$CI_PROJECT_NAME:$CI_COMMIT_REF_SLUG.$CI_COMMIT_SHORT_SHA .
+  - docker login -u oauth -p $CI_REGISTRY_TOKEN $CI_REGISTRY_URI
+  - docker push $CI_REGISTRY_URI/$CI_REGISTRY_ID/$CI_PROJECT_NAME:$CI_COMMIT_REF_SLUG.$CI_COMMIT_SHORT_SHA
+  - docker tag $CI_REGISTRY_URI/$CI_REGISTRY_ID/$CI_PROJECT_NAME:$CI_COMMIT_REF_SLUG.$CI_COMMIT_SHORT_SHA $CI_REGISTRY_URI/$CI_REGISTRY_ID/$CI_PROJECT_NAME:latest
+  - docker push $CI_REGISTRY_URI/$CI_REGISTRY_ID/$CI_PROJECT_NAME:latest
+  only:
+  - develop
+
+test_develop:
+  stage: test
+  image: $CI_REGISTRY_URI/$CI_REGISTRY_ID/$CI_NAMESPACE/rust:latest
+  script:
+  - mkdir -p -m 0600 ~/.ssh
+  - echo "$SSH_PRIVATE_KEY" | base64 -d | tr -d '\r' > ~/.ssh/id_rsa
+  - chmod 600 ~/.ssh/id_rsa
+  - cd backend
+  - CARGO_NET_GIT_FETCH_WITH_CLI=true cargo test
+  only:
+  - develop
+
+deploy_develop:
+  image: alpine/git
+  stage: deploy
+  tags:
+  - shell
+  script:
+  - git clone https://token:$ACCESS_TOKEN@gitlab.***********.git core
+  - cd core
+  - sed -i "s/****************:$CI_COMMIT_REF_SLUG.$CI_COMMIT_SHORT_SHA/g" ***********Deployment.yml
+  - git add kustomize/service/lightsim-service-Deployment.yml
+  - git commit -m "up service"
+  - git push origin master
+
+  only:
+  - develop

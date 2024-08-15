@@ -1,0 +1,7 @@
+.DS_Store
+target
+db-data
+.git
+.env
+service_api
+entity/tmp
